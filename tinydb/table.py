@@ -105,6 +105,7 @@ class Table:
         """
 
         self._storage = storage
+        self._storage.table = name
         self._name = name
         self._query_cache: LRUCache[QueryLike, List[Document]] \
             = self.query_cache_class(capacity=cache_size)
@@ -168,6 +169,8 @@ class Table:
             # ``dict`` instance even if it was a different class that
             # implemented the ``Mapping`` interface
             table[doc_id] = dict(document)
+            self.storageWrite( { f"{doc_id}": table[doc_id] } )
+
 
         # See below for details on ``Table._update``
         self._update_table(updater)
@@ -204,6 +207,7 @@ class Table:
                     doc_id = document.doc_id
                     doc_ids.append(doc_id)
                     table[doc_id] = dict(document)
+                    self.storageWrite( { f"{doc_id}": table[doc_id] } )
                     continue
 
                 # Generate new document ID for this document
@@ -212,6 +216,7 @@ class Table:
                 doc_id = self._get_next_id()
                 doc_ids.append(doc_id)
                 table[doc_id] = dict(document)
+                self.storageWrite( { f"{doc_id}": table[doc_id] } )
 
         # See below for details on ``Table._update``
         self._update_table(updater)
@@ -381,6 +386,7 @@ class Table:
                 # Call the processing callback with all document IDs
                 for doc_id in updated_ids:
                     perform_update(table, doc_id)
+                    self.storageWrite( { f"{doc_id}": table[doc_id] } )
 
             # Perform the update operation (see _update_table for details)
             self._update_table(updater)
@@ -410,6 +416,7 @@ class Table:
 
                         # Perform the update (see above)
                         perform_update(table, doc_id)
+                        self.storageWrite(  { f"{doc_id}": table[doc_id] } )
 
             # Perform the update operation (see _update_table for details)
             self._update_table(updater)
@@ -429,6 +436,7 @@ class Table:
 
                     # Perform the update (see above)
                     perform_update(table, doc_id)
+                    self.storageWrite(  { f"{doc_id}": table[doc_id] }  )
 
             # Perform the update operation (see _update_table for details)
             self._update_table(updater)
@@ -481,6 +489,7 @@ class Table:
 
                         # Perform the update (see above)
                         perform_update(fields, table, doc_id)
+                        self.storageWrite(  { f"{doc_id}": table[doc_id] }  )
 
         # Perform the update operation (see _update_table for details)
         self._update_table(updater)
@@ -552,7 +561,10 @@ class Table:
 
             def updater(table: dict):
                 for doc_id in removed_ids:
+                    #table[doc_id]["_del"] = "1"
+                    self.storageWrite( { f"{doc_id}" : {"_del":1 } } )
                     table.pop(doc_id)
+
 
             # Perform the remove operation
             self._update_table(updater)
@@ -581,6 +593,7 @@ class Table:
                         # Add document ID to list of removed document IDs
                         removed_ids.append(doc_id)
 
+                        self.storageWrite( { f"{doc_id}" : {"_del":1 } } )
                         # Remove document from the table
                         table.pop(doc_id)
 
@@ -597,7 +610,7 @@ class Table:
         """
 
         # Update the table by resetting all data
-        self._update_table(lambda table: table.clear())
+        #self._update_table(lambda table: table.clear())
 
         # Reset document ID counter
         self._next_id = None
@@ -654,7 +667,7 @@ class Table:
 
         # Read the table documents
         table = self._read_table()
-
+        #print( table )
         # If the table is empty, set the initial ID
         if not table:
             next_id = 1
@@ -727,6 +740,7 @@ class Table:
         # This is required as the rest of TinyDB expects the document IDs
         # to be an instance of ``self.document_id_class`` but the storage
         # might convert dict keys to strings.
+        #
         table = {
             self.document_id_class(doc_id): doc
             for doc_id, doc in raw_table.items()
@@ -738,13 +752,19 @@ class Table:
         # Convert the document IDs back to strings.
         # This is required as some storages (most notably the JSON file format)
         # don't support IDs other than strings.
-        tables[self.name] = {
-            str(doc_id): doc
-            for doc_id, doc in table.items()
-        }
+        #tables[self.name] = {
+        #    str(doc_id): doc
+        #    for doc_id, doc in table.items()
+        #}
 
         # Write the newly updated data back to the storage
-        self._storage.write(tables)
+        #self._storage.write(tables)
 
         # Clear the query cache, as the table contents have changed
         self.clear_cache()
+
+
+
+    def storageWrite( self, data: Document ):
+        #data["__T"] = self._name
+        self._storage.write( data )
